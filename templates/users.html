@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-people-fill me-2"></i>User Management</h4>
+    <button class="btn btn-primary" onclick="openAddUser()"><i class="bi bi-plus-lg me-1"></i>Add User</button>
+</div>
+<div class="card shadow-sm"><div class="card-body">
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+        <tbody id="usersBody"></tbody>
+    </table></div>
+</div></div>
+<div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="userModalTitle">Add User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="userId">
+        <div class="mb-3" id="usernameGroup"><label class="form-label">Username <span class="text-danger">*</span></label><input type="text" class="form-control" id="username"></div>
+        <div class="mb-3" id="passwordGroup"><label class="form-label">Password <span class="text-danger">*</span></label><input type="password" class="form-control" id="password"></div>
+        <div class="mb-3"><label class="form-label">Full Name</label><input type="text" class="form-control" id="fullName"></div>
+        <div class="mb-3"><label class="form-label">Role <span class="text-danger">*</span></label><select class="form-select" id="userRole"><option value="collector">Collector</option><option value="admin">Admin</option></select></div>
+        <div class="mb-3" id="activeGroup" style="display:none"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="userActive" checked><label class="form-check-label">Active</label></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save</button></div>
+</div></div></div>
+<div class="modal fade" id="resetPwModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Reset Password</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><input type="hidden" id="resetUserId"><p>User: <strong id="resetUserName"></strong></p>
+        <div class="mb-3"><label class="form-label">New Password <span class="text-danger">*</span></label><input type="password" class="form-control" id="newPassword"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" onclick="resetPassword()">Reset Password</button></div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allUsers = [];
+async function loadUsers() {
+    App.showLoading();
+    try { const data = await API.get('/users'); allUsers = data.users || []; renderUsers(); }
+    catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    App.hideLoading();
+}
+function renderUsers() {
+    const currentUser = API.getUserFromToken();
+    document.getElementById('usersBody').innerHTML = allUsers.map(u => `<tr>
+        <td><strong>${u.username}</strong></td><td>${u.full_name || '-'}</td>
+        <td><span class="badge ${u.role === 'admin' ? 'bg-primary' : 'bg-info'}">${u.role === 'admin' ? 'Admin' : 'Collector'}</span></td>
+        <td>${u.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td>${u.last_login || 'Never'}</td>
+        <td>
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditUser(${u.id})"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-warning" onclick="openResetPw(${u.id}, '${u.username}')"><i class="bi bi-key"></i></button>
+        </td></tr>`).join('');
+}
+function openAddUser() {
+    document.getElementById('userModalTitle').textContent = 'Add User';
+    document.getElementById('userId').value = '';
+    ['username','password','fullName'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('userRole').value = 'collector';
+    document.getElementById('usernameGroup').style.display = 'block';
+    document.getElementById('passwordGroup').style.display = 'block';
+    document.getElementById('activeGroup').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('userModal')).show();
+}
+function openEditUser(id) {
+    const u = allUsers.find(x => x.id === id); if (!u) return;
+    document.getElementById('userModalTitle').textContent = 'Edit User';
+    document.getElementById('userId').value = u.id;
+    document.getElementById('fullName').value = u.full_name || '';
+    document.getElementById('userRole').value = u.role;
+    document.getElementById('userActive').checked = u.is_active;
+    document.getElementById('usernameGroup').style.display = 'none';
+    document.getElementById('passwordGroup').style.display = 'none';
+    document.getElementById('activeGroup').style.display = 'block';
+    new bootstrap.Modal(document.getElementById('userModal')).show();
+}
+async function saveUser() {
+    const id = document.getElementById('userId').value;
+    if (id) {
+        try {
+            await API.put(`/users/${id}`, { role: document.getElementById('userRole').value, full_name: document.getElementById('fullName').value.trim(), is_active: document.getElementById('userActive').checked });
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            App.showToast('User updated', 'success'); loadUsers();
+        } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    } else {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        if (!username) { App.showToast('Username required', 'error'); return; }
+        if (!password || password.length < 4) { App.showToast('Password must be at least 4 characters', 'error'); return; }
+        try {
+            await API.post('/users', { username, password, role: document.getElementById('userRole').value, full_name: document.getElementById('fullName').value.trim() });
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            App.showToast('User created', 'success'); loadUsers();
+        } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    }
+}
+function openResetPw(id, name) {
+    document.getElementById('resetUserId').value = id;
+    document.getElementById('resetUserName').textContent = name;
+    document.getElementById('newPassword').value = '';
+    new bootstrap.Modal(document.getElementById('resetPwModal')).show();
+}
+async function resetPassword() {
+    const id = document.getElementById('resetUserId').value;
+    const pw = document.getElementById('newPassword').value;
+    if (!pw || pw.length < 4) { App.showToast('Password must be at least 4 characters', 'error'); return; }
+    try {
+        await API.post(`/users/${id}/reset-password`, { new_password: pw });
+        bootstrap.Modal.getInstance(document.getElementById('resetPwModal')).hide();
+        App.showToast('Password reset', 'success');
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+document.addEventListener('DOMContentLoaded', () => { if (!App.isAdmin()) { window.location.href = '/dashboard'; return; } loadUsers(); });
+</script>
+{% endblock %}

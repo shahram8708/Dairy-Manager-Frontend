@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Payment Collection{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-cash-stack me-2"></i>Payment Collection</h4>
+</div>
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white"><h6 class="mb-0"><i class="bi bi-search me-1"></i>Select Dealer</h6></div>
+            <div class="card-body">
+                <div class="mb-3"><input type="text" class="form-control" id="dealerSearch" placeholder="Search dealer by name..." oninput="searchDealers()"></div>
+                <div id="dealerResults" class="list-group" style="max-height:300px;overflow-y:auto"></div>
+            </div>
+        </div>
+        <div class="card shadow-sm mt-3" id="dealerInfoCard" style="display:none">
+            <div class="card-body text-center">
+                <h5 id="selectedDealerName" class="mb-1"></h5>
+                <p class="text-muted mb-2" id="selectedDealerAgency"></p>
+                <div class="mb-2"><small class="text-muted">Pending Balance</small><h2 id="selectedDealerBalance" class="mb-0"></h2></div>
+                <div id="creditWarning" class="alert alert-warning py-1 px-2 mb-0 d-none"><small><i class="bi bi-exclamation-triangle"></i> Over credit limit</small></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm" id="paymentFormCard" style="display:none">
+            <div class="card-header bg-success text-white"><h6 class="mb-0"><i class="bi bi-cash me-1"></i>Record Payment</h6></div>
+            <div class="card-body">
+                <input type="hidden" id="selectedDealerId">
+                <div class="mb-3"><label class="form-label">Amount (₹) <span class="text-danger">*</span></label><input type="number" class="form-control form-control-lg" id="paymentAmount" step="0.01" min="0.01" placeholder="Enter amount"></div>
+                <div class="mb-3"><label class="form-label">Payment Mode <span class="text-danger">*</span></label>
+                    <select class="form-select" id="paymentMode">
+                        <option value="Cash">Cash</option><option value="Online/UPI">Online/UPI</option>
+                        <option value="Bank Transfer">Bank Transfer</option><option value="Cheque">Cheque</option>
+                    </select></div>
+                <div class="mb-3"><label class="form-label">Remark</label><input type="text" class="form-control" id="paymentRemark" placeholder="Optional note"></div>
+                <button class="btn btn-success btn-lg w-100" id="submitPaymentBtn" onclick="submitPayment()"><i class="bi bi-check-circle me-1"></i>Record Payment</button>
+            </div>
+        </div>
+        <div class="card shadow-sm mt-3" id="recentPaymentsCard" style="display:none">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-clock-history me-1"></i>Recent Payments</h6></div>
+            <div class="card-body p-0">
+                <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Date</th><th class="text-end">Amount</th><th>Mode</th><th>By</th></tr></thead><tbody id="recentPaymentsBody"></tbody></table></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let submitLock = false;
+let paymentDealers = [];
+
+function renderDealerResults(dealers) {
+    document.getElementById('dealerResults').innerHTML = (dealers || []).map(d =>
+        `<a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" onclick="selectDealer(${d.id}); return false;">
+            <div><strong>${d.name}</strong><br><small class="text-muted">${d.agency_name} ${d.route_area ? '• ' + d.route_area : ''}</small></div>
+            <span class="badge ${d.pending_balance > 0 ? 'bg-warning text-dark' : 'bg-success'}">${App.formatCurrency(d.pending_balance)}</span>
+        </a>`).join('') || '<div class="text-muted text-center py-3">No dealers found</div>';
+}
+
+const searchDealers = App.debounce(() => {
+    const q = document.getElementById('dealerSearch').value.trim().toLowerCase();
+    if (!paymentDealers.length) {
+        renderDealerResults([]);
+        return;
+    }
+    if (q.length < 1) {
+        renderDealerResults(paymentDealers);
+        return;
+    }
+    const filtered = paymentDealers.filter(d => d.name.toLowerCase().includes(q) || (d.agency_name || '').toLowerCase().includes(q) || (d.route_area || '').toLowerCase().includes(q));
+    renderDealerResults(filtered);
+}, 300);
+
+async function loadDealers() {
+    try {
+        const data = await API.get('/dealers?is_active=true&per_page=1000');
+        paymentDealers = data.dealers || [];
+        renderDealerResults(paymentDealers);
+    } catch (e) {
+        document.getElementById('dealerResults').innerHTML = '<div class="text-danger text-center py-3">Failed to load dealers</div>';
+    }
+}
+
+async function selectDealer(id) {
+    try {
+        const data = await API.get(`/dealers/${id}`);
+        const d = data.dealer;
+        document.getElementById('selectedDealerId').value = d.id;
+        document.getElementById('selectedDealerName').textContent = d.name;
+        document.getElementById('selectedDealerAgency').textContent = d.agency_name + (d.route_area ? ' • ' + d.route_area : '');
+        const balEl = document.getElementById('selectedDealerBalance');
+        balEl.textContent = App.formatCurrency(d.pending_balance);
+        balEl.className = d.pending_balance > 0 ? 'text-danger mb-0' : 'text-success mb-0';
+        const warn = document.getElementById('creditWarning');
+        if (d.over_credit_limit) warn.classList.remove('d-none'); else warn.classList.add('d-none');
+        document.getElementById('dealerInfoCard').style.display = 'block';
+        document.getElementById('paymentFormCard').style.display = 'block';
+        document.getElementById('paymentAmount').value = '';
+        document.getElementById('paymentRemark').value = '';
+        document.getElementById('recentPaymentsCard').style.display = 'block';
+        loadRecentPayments(d.id);
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+async function loadRecentPayments(dealerId) {
+    try {
+        const data = await API.get(`/payments?dealer_id=${dealerId}&per_page=5`);
+        document.getElementById('recentPaymentsBody').innerHTML = (data.payments || []).map(p =>
+            `<tr><td>${p.payment_date}</td><td class="text-end">${App.formatCurrency(p.amount)}</td><td><span class="badge bg-info-subtle text-info">${p.payment_mode}</span></td><td>${p.collected_by_name || '-'}</td></tr>`
+        ).join('') || '<tr><td colspan="4" class="text-center text-muted">No payments yet</td></tr>';
+    } catch(e) {}
+}
+async function submitPayment() {
+    if (submitLock) return;
+    const dealerId = document.getElementById('selectedDealerId').value;
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const mode = document.getElementById('paymentMode').value;
+    const remark = document.getElementById('paymentRemark').value.trim();
+    if (!dealerId) { App.showToast('Select a dealer first', 'error'); return; }
+    if (!amount || amount <= 0) { App.showToast('Enter a valid amount', 'error'); return; }
+    submitLock = true;
+    const btn = document.getElementById('submitPaymentBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+    try {
+        const data = await API.post('/payments', { dealer_id: parseInt(dealerId), amount, payment_mode: mode, remark });
+        App.showToast(`Payment of ${App.formatCurrency(amount)} recorded successfully!`, 'success');
+        const d = data.dealer;
+        const balEl = document.getElementById('selectedDealerBalance');
+        balEl.textContent = App.formatCurrency(d.pending_balance);
+        balEl.className = d.pending_balance > 0 ? 'text-danger mb-0' : 'text-success mb-0';
+        if (d.over_credit_limit) document.getElementById('creditWarning').classList.remove('d-none');
+        else document.getElementById('creditWarning').classList.add('d-none');
+        document.getElementById('paymentAmount').value = '';
+        document.getElementById('paymentRemark').value = '';
+        loadRecentPayments(dealerId);
+    } catch(e) { App.showToast(e.error || 'Failed to record payment', 'error'); }
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Record Payment';
+    setTimeout(() => { submitLock = false; }, 2000);
+}
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadDealers();
+    const params = new URLSearchParams(window.location.search);
+    const dealerId = params.get('dealer_id');
+    if (dealerId) selectDealer(parseInt(dealerId));
+});
+</script>
+{% endblock %}

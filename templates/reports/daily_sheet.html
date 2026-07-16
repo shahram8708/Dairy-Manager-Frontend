@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Daily Sheet Report{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-table me-2"></i>Daily Agency Sheet Report</h4>
+</div>
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label">Agency</label><select class="form-select" id="agencySelect"><option value="">Select Agency</option></select></div>
+        <div class="col-md-3"><label class="form-label">Date</label><input type="date" class="form-control" id="reportDate"></div>
+        <div class="col-md-2"><button class="btn btn-primary" onclick="generateReport()"><i class="bi bi-search me-1"></i>Generate</button></div>
+        <div class="col-md-4 text-end" id="exportBtns" style="display:none">
+            <button class="btn btn-outline-danger btn-sm me-1" onclick="exportReport('pdf')"><i class="bi bi-file-pdf me-1"></i>PDF</button>
+            <button class="btn btn-outline-success btn-sm me-1" onclick="exportReport('excel')"><i class="bi bi-file-excel me-1"></i>Excel</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
+    </div>
+</div></div>
+<div class="card shadow-sm" id="reportCard" style="display:none"><div class="card-body p-0">
+    <div class="delivery-grid-wrapper"><table class="table table-bordered table-sm mb-0 delivery-grid" id="reportTable">
+        <thead id="reportHead"></thead><tbody id="reportBody"></tbody><tfoot id="reportFoot"></tfoot>
+    </table></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/reports.js"></script>
+<script>
+async function init() {
+    try {
+        const data = await API.get('/agencies?is_active=true');
+        (data.agencies || []).forEach(a => document.getElementById('agencySelect').innerHTML += `<option value="${a.id}">${a.name} (${a.shift_label || ''})</option>`);
+    } catch(e) {}
+    document.getElementById('reportDate').value = App.todayISO();
+}
+async function generateReport() {
+    const agencyId = document.getElementById('agencySelect').value;
+    const date = document.getElementById('reportDate').value;
+    if (!agencyId || !date) { App.showToast('Select agency and date', 'error'); return; }
+    App.showLoading();
+    try {
+        const data = await API.get(`/reports/daily-sheet?agency_id=${agencyId}&date=${date}`);
+        renderDailySheet(data);
+        document.getElementById('reportCard').style.display = 'block';
+        document.getElementById('exportBtns').style.display = 'block';
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    App.hideLoading();
+}
+function renderDailySheet(data) {
+    const products = data.products || [];
+    const dealers = data.dealers || [];
+    const totals = data.totals || {};
+    let headHtml = '<tr class="sticky-header"><th class="sticky-col">Dealer</th>';
+    products.forEach(p => headHtml += `<th class="text-center">${p.name}<br><small>${p.pack_size || ''}</small></th>`);
+    headHtml += '<th class="text-end">Bill (₹)</th><th class="text-end">Paid (₹)</th><th class="text-end">Pending (₹)</th></tr>';
+    document.getElementById('reportHead').innerHTML = headHtml;
+    let bodyHtml = '';
+    dealers.forEach(d => {
+        bodyHtml += `<tr><td class="sticky-col fw-semibold">${d.name}</td>`;
+        products.forEach(p => {
+            const item = d.products ? d.products[String(p.id)] : null;
+            const qty = item ? item.qty : 0;
+            bodyHtml += `<td class="text-center">${qty || '-'}</td>`;
+        });
+        bodyHtml += `<td class="text-end">${App.formatCurrency(d.day_bill)}</td>`;
+        bodyHtml += `<td class="text-end">${App.formatCurrency(d.total_paid)}</td>`;
+        bodyHtml += `<td class="text-end fw-bold ${d.pending_balance > 0 ? 'text-danger' : 'text-success'}">${App.formatCurrency(d.pending_balance)}</td></tr>`;
+    });
+    document.getElementById('reportBody').innerHTML = bodyHtml || '<tr><td colspan="100" class="text-center text-muted">No data for this date</td></tr>';
+    let footHtml = '<tr class="table-dark"><td class="sticky-col fw-bold">TOTAL</td>';
+    const prodTotals = totals.products || {};
+    products.forEach(p => footHtml += `<td class="text-center fw-bold">${prodTotals[String(p.id)] || 0}</td>`);
+    footHtml += `<td class="text-end fw-bold">${App.formatCurrency(totals.bill_total || 0)}</td>`;
+    footHtml += `<td class="text-end fw-bold">${App.formatCurrency(totals.paid_total || 0)}</td>`;
+    footHtml += `<td class="text-end fw-bold">${App.formatCurrency(totals.pending_total || 0)}</td></tr>`;
+    document.getElementById('reportFoot').innerHTML = footHtml;
+}
+function exportReport(format) {
+    const agencyId = document.getElementById('agencySelect').value;
+    const date = document.getElementById('reportDate').value;
+    API.download(`/reports/export/daily-sheet?format=${format}&agency_id=${agencyId}&date=${date}`, `daily_sheet_${date}.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

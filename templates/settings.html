@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h4 class="page-title mb-4"><i class="bi bi-gear me-2"></i>Settings</h4>
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-building me-1"></i>Business Information</h6></div>
+            <div class="card-body">
+                <div class="mb-3"><label class="form-label">Business Name</label><input type="text" class="form-control" id="businessName"></div>
+                <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" id="businessAddress" rows="2"></textarea></div>
+                <div class="row"><div class="col-6 mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" id="businessPhone"></div>
+                <div class="col-6 mb-3"><label class="form-label">Email</label><input type="email" class="form-control" id="businessEmail"></div></div>
+                <button class="btn btn-primary" onclick="saveSettings()"><i class="bi bi-check-lg me-1"></i>Save Settings</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-1"></i>System</h6></div>
+            <div class="card-body">
+                <button class="btn btn-outline-success mb-3 w-100" onclick="downloadBackup()"><i class="bi bi-download me-1"></i>Download Database Backup</button>
+                <hr>
+                <h6>Change Password</h6>
+                <div class="mb-2"><input type="password" class="form-control" id="currentPw" placeholder="Current password"></div>
+                <div class="mb-2"><input type="password" class="form-control" id="newPw" placeholder="New password"></div>
+                <button class="btn btn-warning" onclick="changePassword()"><i class="bi bi-key me-1"></i>Change Password</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-journal-text me-1"></i>Audit Log</h6>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="auditEntityFilter" onchange="loadAuditLog()" style="width:auto"><option value="">All Entities</option>
+                <option value="agency">Agency</option><option value="product">Product</option><option value="product_price">Price</option>
+                <option value="dealer">Dealer</option><option value="delivery">Delivery</option><option value="payment">Payment</option><option value="user">User</option></select>
+            <select class="form-select form-select-sm" id="auditActionFilter" onchange="loadAuditLog()" style="width:auto"><option value="">All Actions</option>
+                <option value="create">Create</option><option value="update">Update</option><option value="delete">Delete</option></select>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th></tr></thead>
+            <tbody id="auditBody"></tbody>
+        </table></div>
+        <div id="auditPagination" class="p-2"></div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadSettings() {
+    try {
+        const data = await API.get('/settings');
+        const s = data.settings || {};
+        document.getElementById('businessName').value = s.business_name || '';
+        document.getElementById('businessAddress').value = s.address || '';
+        document.getElementById('businessPhone').value = s.phone || '';
+        document.getElementById('businessEmail').value = s.email || '';
+    } catch(e) {}
+}
+async function saveSettings() {
+    try {
+        await API.put('/settings', {
+            business_name: document.getElementById('businessName').value.trim(),
+            address: document.getElementById('businessAddress').value.trim(),
+            phone: document.getElementById('businessPhone').value.trim(),
+            email: document.getElementById('businessEmail').value.trim()
+        });
+        App.showToast('Settings saved', 'success');
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+async function downloadBackup() {
+    try { await API.download('/settings/backup', `dairy_backup_${App.todayISO()}.db`); App.showToast('Backup downloaded', 'success'); }
+    catch(e) { App.showToast('Backup failed', 'error'); }
+}
+async function changePassword() {
+    const current = document.getElementById('currentPw').value;
+    const newPw = document.getElementById('newPw').value;
+    if (!current || !newPw) { App.showToast('Fill in both fields', 'error'); return; }
+    if (newPw.length < 4) { App.showToast('New password must be at least 4 characters', 'error'); return; }
+    try {
+        await API.post('/auth/change-password', { current_password: current, new_password: newPw });
+        App.showToast('Password changed', 'success');
+        document.getElementById('currentPw').value = '';
+        document.getElementById('newPw').value = '';
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+let auditPage = 1;
+async function loadAuditLog(page = 1) {
+    auditPage = page;
+    let url = `/settings/audit-log?page=${auditPage}&per_page=15`;
+    const entity = document.getElementById('auditEntityFilter').value;
+    const action = document.getElementById('auditActionFilter').value;
+    if (entity) url += `&entity_type=${entity}`;
+    if (action) url += `&action=${action}`;
+    try {
+        const data = await API.get(url);
+        document.getElementById('auditBody').innerHTML = (data.logs || []).map(l => `<tr>
+            <td><small>${l.timestamp}</small></td><td>${l.user_name}</td>
+            <td><span class="badge ${l.action === 'create' ? 'bg-success' : l.action === 'delete' ? 'bg-danger' : 'bg-warning text-dark'}">${l.action}</span></td>
+            <td>${l.entity_type}</td><td>${l.entity_id || '-'}</td>
+            <td><small class="text-muted text-truncate d-inline-block" style="max-width:200px" title="${(l.after_value || '').replace(/"/g, '&quot;')}">${l.after_value ? l.after_value.substring(0, 50) + '...' : '-'}</small></td>
+        </tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted">No audit logs</td></tr>';
+        App.renderPagination('auditPagination', data.page, data.pages, loadAuditLog);
+    } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', () => { if (!App.isAdmin()) { window.location.href = '/dashboard'; return; } loadSettings(); loadAuditLog(); });
+</script>
+{% endblock %}

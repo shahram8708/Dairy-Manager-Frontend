@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Payment Collection Report{% endblock %}
+{% block content %}
+<h4 class="page-title mb-4"><i class="bi bi-cash-coin me-2"></i>Payment Collection Report</h4>
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label">From</label><input type="date" class="form-control" id="fromDate"></div>
+        <div class="col-md-2"><label class="form-label">To</label><input type="date" class="form-control" id="toDate"></div>
+        <div class="col-md-2"><label class="form-label">Agency</label><select class="form-select" id="agencyFilter"><option value="">All</option></select></div>
+        <div class="col-md-2"><label class="form-label">Collector</label><select class="form-select" id="collectorFilter"><option value="">All</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100" onclick="generateReport()"><i class="bi bi-search me-1"></i>Generate</button></div>
+        <div class="col-md-2 text-end" id="exportBtns" style="display:none">
+            <button class="btn btn-outline-danger btn-sm" onclick="exportReport('pdf')"><i class="bi bi-file-pdf"></i></button>
+            <button class="btn btn-outline-success btn-sm" onclick="exportReport('excel')"><i class="bi bi-file-excel"></i></button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
+        </div>
+    </div>
+</div></div>
+<div id="reportContent" style="display:none">
+    <div class="row g-3 mb-3" id="summaryCards"></div>
+    <div class="card shadow-sm"><div class="card-body p-0">
+        <div class="table-responsive"><table class="table table-hover table-sm mb-0">
+            <thead><tr><th>Date</th><th>Dealer</th><th class="text-end">Amount (₹)</th><th>Mode</th><th>Collected By</th><th>Remark</th></tr></thead>
+            <tbody id="reportBody"></tbody>
+        </table></div>
+    </div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/reports.js"></script>
+<script>
+async function init() {
+    try {
+        const agencies = await API.get('/agencies?is_active=true');
+        (agencies.agencies || []).forEach(a => document.getElementById('agencyFilter').innerHTML += `<option value="${a.id}">${a.name}</option>`);
+    } catch(e) {}
+    try {
+        const users = await API.get('/users');
+        (users.users || []).forEach(u => document.getElementById('collectorFilter').innerHTML += `<option value="${u.id}">${u.full_name || u.username}</option>`);
+    } catch(e) {}
+    const today = App.todayISO();
+    const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+    document.getElementById('fromDate').value = monthAgo.toISOString().split('T')[0];
+    document.getElementById('toDate').value = today;
+}
+async function generateReport() {
+    const from = document.getElementById('fromDate').value;
+    const to = document.getElementById('toDate').value;
+    if (!from || !to) { App.showToast('Select date range', 'error'); return; }
+    App.showLoading();
+    try {
+        let url = `/reports/payment-collection?from_date=${from}&to_date=${to}`;
+        const agency = document.getElementById('agencyFilter').value;
+        const collector = document.getElementById('collectorFilter').value;
+        if (agency) url += `&agency_id=${agency}`;
+        if (collector) url += `&collected_by=${collector}`;
+        const data = await API.get(url);
+        const payments = data.payments || [];
+        const summary = data.summary || {};
+        const byMode = summary.by_mode || {};
+        document.getElementById('summaryCards').innerHTML = `
+            <div class="col-md-3"><div class="card bg-light"><div class="card-body py-2 text-center"><small>Total Collected</small><div class="fw-bold text-success h5">${App.formatCurrency(summary.total_amount || 0)}</div></div></div></div>
+            <div class="col-md-2"><div class="card bg-light"><div class="card-body py-2 text-center"><small>Count</small><div class="fw-bold">${summary.count || 0}</div></div></div></div>
+            ${Object.entries(byMode).map(([mode, amt]) => `<div class="col-auto"><div class="card bg-light"><div class="card-body py-2 text-center"><small>${mode}</small><div class="fw-bold">${App.formatCurrency(amt)}</div></div></div></div>`).join('')}`;
+        document.getElementById('reportBody').innerHTML = payments.length ? payments.map(p => `<tr>
+            <td>${p.payment_date}</td><td><a href="/dealers/${p.dealer_id}" class="text-decoration-none">${p.dealer_name}</a></td>
+            <td class="text-end fw-bold">${App.formatCurrency(p.amount)}</td>
+            <td><span class="badge bg-info-subtle text-info">${p.payment_mode}</span></td>
+            <td>${p.collected_by_name || '-'}</td><td>${p.remark || '-'}</td></tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted">No payments found</td></tr>';
+        document.getElementById('reportContent').style.display = 'block';
+        document.getElementById('exportBtns').style.display = 'block';
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    App.hideLoading();
+}
+function exportReport(format) {
+    const from = document.getElementById('fromDate').value;
+    const to = document.getElementById('toDate').value;
+    let url = `/reports/export/payment-collection?format=${format}&from_date=${from}&to_date=${to}`;
+    const agency = document.getElementById('agencyFilter').value;
+    const collector = document.getElementById('collectorFilter').value;
+    if (agency) url += `&agency_id=${agency}`;
+    if (collector) url += `&collected_by=${collector}`;
+    API.download(url, `payment_collection.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Login - Dairy Distribution Management System">
+    <title>Login - Dairy Distribution Manager</title>
+
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body class="login-page">
+
+<!-- Hidden API base URL -->
+<div id="api-base-url" style="display:none;">{{ api_base_url }}</div>
+
+<!-- Toast container -->
+<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:11000;"></div>
+
+<div class="login-wrapper">
+    <!-- Decorative background elements -->
+    <div class="login-bg-shape login-bg-shape-1"></div>
+    <div class="login-bg-shape login-bg-shape-2"></div>
+    <div class="login-bg-shape login-bg-shape-3"></div>
+
+    <div class="login-container">
+        <!-- Left branding panel (hidden on mobile) -->
+        <div class="login-brand-panel d-none d-md-flex">
+            <div class="login-brand-content">
+                <div class="login-brand-icon-wrap">
+                    <i class="bi bi-droplet-fill login-brand-icon"></i>
+                </div>
+                <h1 class="login-brand-title">Dairy Distribution<br>Manager</h1>
+                <p class="login-brand-desc">
+                    Streamline your dairy distribution with powerful tools for delivery tracking,
+                    payment collection, and comprehensive business reporting.
+                </p>
+                <div class="login-brand-features">
+                    <div class="login-feature">
+                        <i class="bi bi-truck"></i>
+                        <span>Delivery Tracking</span>
+                    </div>
+                    <div class="login-feature">
+                        <i class="bi bi-cash-stack"></i>
+                        <span>Payment Collection</span>
+                    </div>
+                    <div class="login-feature">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Business Reports</span>
+                    </div>
+                    <div class="login-feature">
+                        <i class="bi bi-people"></i>
+                        <span>Dealer Management</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right login form panel -->
+        <div class="login-form-panel">
+            <div class="login-form-inner">
+                <!-- Mobile branding (hidden on desktop) -->
+                <div class="text-center mb-4 d-md-none">
+                    <i class="bi bi-droplet-fill" style="font-size:2.5rem;color:var(--primary);"></i>
+                    <h4 class="mt-2 fw-bold" style="color:var(--primary-dark);">Dairy Manager</h4>
+                </div>
+
+                <h2 class="login-title">Welcome back</h2>
+                <p class="login-subtitle">Sign in to your account to continue</p>
+
+                <!-- Connection status for login page -->
+                <div id="login-connection-status" class="mb-3" style="display:none;">
+                    <div class="alert alert-warning py-2 d-flex align-items-center" role="alert">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <small>Connecting to server... This may take a moment.</small>
+                    </div>
+                </div>
+
+                <form id="login-form" novalidate>
+                    <div class="mb-3">
+                        <label for="username" class="form-label fw-medium">Username</label>
+                        <div class="input-group input-group-login">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   placeholder="Enter your username" required autocomplete="username" autofocus>
+                        </div>
+                        <div class="invalid-feedback" id="username-error">Username is required.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="password" class="form-label fw-medium">Password</label>
+                        <div class="input-group input-group-login">
+                            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   placeholder="Enter your password" required autocomplete="current-password">
+                            <button class="btn btn-outline-secondary border-start-0" type="button" id="toggle-password"
+                                    tabindex="-1" aria-label="Toggle password visibility">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="invalid-feedback" id="password-error">Password is required.</div>
+                    </div>
+
+                    <!-- Error alert -->
+                    <div id="login-error" class="alert alert-danger py-2 d-none" role="alert">
+                        <i class="bi bi-exclamation-circle-fill me-2"></i>
+                        <span id="login-error-text"></span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-login w-100" id="login-btn">
+                        <span class="login-btn-text">Sign In</span>
+                        <span class="login-btn-loading d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            Signing in...
+                        </span>
+                    </button>
+                </form>
+
+                <div class="login-footer mt-4">
+                    <small class="text-muted">&copy; 2026 Dairy Distribution Manager. All rights reserved.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- API Client -->
+<script src="/static/js/api.js"></script>
+<!-- App Utilities -->
+<script src="/static/js/app.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    await API.init();
+    // If already logged in, redirect to dashboard
+    const token = localStorage.getItem('access_token');
+    const refresh = localStorage.getItem('refresh_token');
+    if (!token && refresh) {
+        const refreshed = await API.refreshToken();
+        if (refreshed) {
+            window.location.href = '/dashboard';
+            return;
+        }
+    }
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.exp && payload.exp * 1000 > Date.now()) {
+                window.location.href = '/dashboard';
+                return;
+            }
+            if (refresh) {
+                const refreshed = await API.refreshToken();
+                if (refreshed) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+            }
+        } catch (e) {
+            // invalid token
+        }
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+    }
+
+    // Show connection status
+    const statusInterval = setInterval(() => {
+        const statusEl = document.getElementById('login-connection-status');
+        if (API.isAwake()) {
+            if (statusEl) statusEl.style.display = 'none';
+            clearInterval(statusInterval);
+        } else {
+            if (statusEl) statusEl.style.display = 'block';
+        }
+    }, 500);
+
+    // Toggle password visibility
+    const toggleBtn = document.getElementById('toggle-password');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            const pwdInput = document.getElementById('password');
+            const icon = this.querySelector('i');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                pwdInput.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        });
+    }
+
+    // Login form submission
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('login-error');
+        const errorText = document.getElementById('login-error-text');
+        const loginBtn = document.getElementById('login-btn');
+
+        // Reset validation
+        errorDiv.classList.add('d-none');
+        document.getElementById('username').classList.remove('is-invalid');
+        document.getElementById('password').classList.remove('is-invalid');
+
+        // Validate
+        let hasError = false;
+        if (!username) {
+            document.getElementById('username').classList.add('is-invalid');
+            hasError = true;
+        }
+        if (!password) {
+            document.getElementById('password').classList.add('is-invalid');
+            hasError = true;
+        }
+        if (hasError) return;
+
+        // Show loading state
+        loginBtn.disabled = true;
+        loginBtn.querySelector('.login-btn-text').classList.add('d-none');
+        loginBtn.querySelector('.login-btn-loading').classList.remove('d-none');
+
+        try {
+            const data = await API.post('/auth/login', { username, password });
+            if (data && data.access_token) {
+                API.setTokens(data.access_token, data.refresh_token);
+                await API.get('/auth/me');
+                window.location.href = '/dashboard';
+            } else {
+                throw { error: 'Invalid response from server.' };
+            }
+        } catch (err) {
+            API.clearTokens();
+            const msg = err.error || err.message || 'Login failed. Please try again.';
+            errorText.textContent = msg;
+            errorDiv.classList.remove('d-none');
+            // Shake animation
+            errorDiv.classList.add('shake');
+            setTimeout(() => errorDiv.classList.remove('shake'), 600);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.querySelector('.login-btn-text').classList.remove('d-none');
+            loginBtn.querySelector('.login-btn-loading').classList.add('d-none');
+        }
+    });
+
+    // Enter key on username field moves to password
+    document.getElementById('username').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('password').focus();
+        }
+    });
+});
+</script>
+</body>
+</html>

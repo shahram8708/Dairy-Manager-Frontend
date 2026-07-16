@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}Dealers{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-people me-2"></i>Dealers</h4>
+    <button class="btn btn-primary" onclick="openAddDealer()" data-role="admin"><i class="bi bi-plus-lg me-1"></i>Add Dealer</button>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="row mb-3 g-2">
+            <div class="col-md-4"><input type="text" class="form-control" id="searchInput" placeholder="Search dealers..." oninput="debouncedSearch()"></div>
+            <div class="col-md-3"><select class="form-select" id="agencyFilter" onchange="loadDealers()"><option value="">All Agencies</option></select></div>
+            <div class="col-md-2"><select class="form-select" id="statusFilter" onchange="loadDealers()"><option value="true">Active</option><option value="">All</option><option value="false">Inactive</option></select></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Name</th><th>Phone</th><th>Agency</th><th>Route/Area</th><th class="text-end">Pending Balance</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="dealersBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyState" class="text-center py-5 d-none"><i class="bi bi-people text-muted" style="font-size:3rem"></i><p class="text-muted mt-2">No dealers found</p></div>
+        <div id="pagination" class="mt-3"></div>
+    </div>
+</div>
+<div class="modal fade" id="dealerModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="dealerModalTitle">Add Dealer</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="dealerId">
+        <div class="mb-3"><label class="form-label">Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="dealerName"></div>
+        <div class="mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" id="dealerPhone"></div>
+        <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" id="dealerAddress" rows="2"></textarea></div>
+        <div class="mb-3"><label class="form-label">Agency <span class="text-danger">*</span></label><select class="form-select" id="dealerAgency"></select></div>
+        <div class="mb-3"><label class="form-label">Route / Area</label><input type="text" class="form-control" id="dealerRoute"></div>
+        <div class="row"><div class="col-6 mb-3"><label class="form-label">Credit Limit (₹)</label><input type="number" class="form-control" id="dealerCreditLimit" step="0.01" min="0"></div>
+        <div class="col-6 mb-3"><label class="form-label">Opening Balance (₹)</label><input type="number" class="form-control" id="dealerOpening" step="0.01" value="0"></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveDealer()">Save</button></div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let currentPage = 1;
+let agencies = [];
+const debouncedSearch = App.debounce(() => { currentPage = 1; loadDealers(); }, 300);
+async function loadAgencies() {
+    try { const data = await API.get('/agencies?is_active=true'); agencies = data.agencies || [];
+        const sel = document.getElementById('agencyFilter');
+        const sel2 = document.getElementById('dealerAgency');
+        agencies.forEach(a => { sel.innerHTML += `<option value="${a.id}">${a.name}</option>`; sel2.innerHTML += `<option value="${a.id}">${a.name}</option>`; });
+    } catch(e) {}
+}
+async function loadDealers() {
+    App.showLoading();
+    try {
+        let url = `/dealers?page=${currentPage}&per_page=20`;
+        const agency = document.getElementById('agencyFilter').value;
+        const search = document.getElementById('searchInput').value.trim();
+        const status = document.getElementById('statusFilter').value;
+        if (agency) url += `&agency_id=${agency}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (status !== '') url += `&is_active=${status}`;
+        const data = await API.get(url);
+        renderDealers(data);
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    App.hideLoading();
+}
+function renderDealers(data) {
+    const tbody = document.getElementById('dealersBody');
+    const empty = document.getElementById('emptyState');
+    const dealers = data.dealers || [];
+    if (!dealers.length) { tbody.innerHTML = ''; empty.classList.remove('d-none'); return; }
+    empty.classList.add('d-none');
+    tbody.innerHTML = dealers.map(d => {
+        const balClass = d.pending_balance > 0 ? (d.over_credit_limit ? 'text-danger fw-bold' : 'text-warning') : 'text-success';
+        return `<tr>
+        <td><a href="/dealers/${d.id}" class="text-decoration-none fw-semibold">${d.name}</a></td>
+        <td>${d.phone || '-'}</td><td><span class="badge bg-info-subtle text-info">${d.agency_name || '-'}</span></td>
+        <td>${d.route_area || '-'}</td>
+        <td class="text-end ${balClass}">${App.formatCurrency(d.pending_balance)}${d.over_credit_limit ? ' <i class="bi bi-exclamation-triangle-fill text-danger"></i>' : ''}</td>
+        <td>${d.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td>
+            <a href="/dealers/${d.id}" class="btn btn-sm btn-outline-info me-1" title="View"><i class="bi bi-eye"></i></a>
+            ${App.isAdmin() ? `<button class="btn btn-sm btn-outline-primary me-1" onclick="openEditDealer(${d.id})" title="Edit"><i class="bi bi-pencil"></i></button>
+            ${d.is_active ? `<button class="btn btn-sm btn-outline-danger" onclick="deactivateDealer(${d.id},'${d.name}')" title="Deactivate"><i class="bi bi-x-circle"></i></button>` : ''}` : ''}
+        </td></tr>`;
+    }).join('');
+    App.renderPagination('pagination', data.page, data.pages, (p) => { currentPage = p; loadDealers(); });
+}
+function openAddDealer() {
+    document.getElementById('dealerModalTitle').textContent = 'Add Dealer';
+    document.getElementById('dealerId').value = '';
+    ['dealerName','dealerPhone','dealerAddress','dealerRoute'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('dealerCreditLimit').value = '';
+    document.getElementById('dealerOpening').value = '0';
+    document.getElementById('dealerAgency').value = agencies.length ? agencies[0].id : '';
+    new bootstrap.Modal(document.getElementById('dealerModal')).show();
+}
+async function openEditDealer(id) {
+    try {
+        const data = await API.get(`/dealers/${id}`); const d = data.dealer;
+        document.getElementById('dealerModalTitle').textContent = 'Edit Dealer';
+        document.getElementById('dealerId').value = d.id;
+        document.getElementById('dealerName').value = d.name;
+        document.getElementById('dealerPhone').value = d.phone || '';
+        document.getElementById('dealerAddress').value = d.address || '';
+        document.getElementById('dealerAgency').value = d.agency_id;
+        document.getElementById('dealerRoute').value = d.route_area || '';
+        document.getElementById('dealerCreditLimit').value = d.credit_limit !== null ? d.credit_limit : '';
+        document.getElementById('dealerOpening').value = d.opening_balance || 0;
+        new bootstrap.Modal(document.getElementById('dealerModal')).show();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+async function saveDealer() {
+    const name = document.getElementById('dealerName').value.trim();
+    const agencyId = document.getElementById('dealerAgency').value;
+    if (!name) { App.showToast('Name is required', 'error'); return; }
+    if (!agencyId) { App.showToast('Agency is required', 'error'); return; }
+    const cl = document.getElementById('dealerCreditLimit').value;
+    const payload = { name, phone: document.getElementById('dealerPhone').value.trim(), address: document.getElementById('dealerAddress').value.trim(), agency_id: parseInt(agencyId), route_area: document.getElementById('dealerRoute').value.trim(), credit_limit: cl !== '' ? parseFloat(cl) : null, opening_balance: parseFloat(document.getElementById('dealerOpening').value) || 0 };
+    const id = document.getElementById('dealerId').value;
+    try {
+        if (id) await API.put(`/dealers/${id}`, payload); else await API.post('/dealers', payload);
+        bootstrap.Modal.getInstance(document.getElementById('dealerModal')).hide();
+        App.showToast(id ? 'Dealer updated' : 'Dealer created', 'success'); loadDealers();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+function deactivateDealer(id, name) { App.confirm(`Deactivate "${name}"?`, async () => { try { await API.del(`/dealers/${id}`); App.showToast('Deactivated', 'success'); loadDealers(); } catch(e) { App.showToast(e.error || 'Failed', 'error'); } }); }
+document.addEventListener('DOMContentLoaded', async () => { await loadAgencies(); loadDealers(); });
+</script>
+{% endblock %}

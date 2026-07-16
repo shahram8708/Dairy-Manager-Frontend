@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Agencies{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-building me-2"></i>Agencies</h4>
+    <button class="btn btn-primary" onclick="openAddModal()" data-role="admin"><i class="bi bi-plus-lg me-1"></i>Add Agency</button>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchInput" placeholder="Search agencies..." oninput="filterAgencies()">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="agenciesTable">
+                <thead><tr><th>Name</th><th>Shift</th><th>Contact Person</th><th>Phone</th><th>Dealers</th><th>Status</th><th data-role="admin">Actions</th></tr></thead>
+                <tbody id="agenciesBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyState" class="text-center py-5 d-none"><i class="bi bi-building text-muted" style="font-size:3rem"></i><p class="text-muted mt-2">No agencies found</p></div>
+    </div>
+</div>
+<div class="modal fade" id="agencyModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="modalTitle">Add Agency</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="agencyId">
+        <div class="mb-3"><label class="form-label">Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="agencyName" required></div>
+        <div class="mb-3"><label class="form-label">Shift Label</label><input type="text" class="form-control" id="shiftLabel" placeholder="e.g., AM, PM"></div>
+        <div class="mb-3"><label class="form-label">Contact Person</label><input type="text" class="form-control" id="contactPerson"></div>
+        <div class="mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" id="agencyPhone"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveAgency()">Save</button></div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allAgencies = [];
+async function loadAgencies() {
+    App.showLoading();
+    try {
+        const data = await API.get('/agencies');
+        allAgencies = data.agencies || [];
+        renderAgencies(allAgencies);
+    } catch(e) { App.showToast(e.error || 'Failed to load agencies', 'error'); }
+    App.hideLoading();
+}
+function renderAgencies(agencies) {
+    const tbody = document.getElementById('agenciesBody');
+    const empty = document.getElementById('emptyState');
+    if (!agencies.length) { tbody.innerHTML = ''; empty.classList.remove('d-none'); return; }
+    empty.classList.add('d-none');
+    tbody.innerHTML = agencies.map(a => `<tr>
+        <td><strong>${a.name}</strong></td>
+        <td><span class="badge bg-info-subtle text-info">${a.shift_label || '-'}</span></td>
+        <td>${a.contact_person || '-'}</td>
+        <td>${a.phone || '-'}</td>
+        <td><span class="badge bg-primary">${a.dealer_count}</span></td>
+        <td>${a.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td data-role="admin">
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditModal(${a.id})"><i class="bi bi-pencil"></i></button>
+            ${a.is_active
+                ? `<button class="btn btn-sm btn-outline-danger" onclick="deactivateAgency(${a.id}, '${a.name}')"><i class="bi bi-x-circle"></i></button>`
+                : `<button class="btn btn-sm btn-outline-success" onclick="activateAgency(${a.id}, '${a.name}')"><i class="bi bi-check-circle"></i></button>`}
+        </td></tr>`).join('');
+    if (!App.isAdmin()) document.querySelectorAll('[data-role="admin"]').forEach(el => el.style.display = 'none');
+}
+function filterAgencies() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    renderAgencies(allAgencies.filter(a => a.name.toLowerCase().includes(q)));
+}
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Add Agency';
+    document.getElementById('agencyId').value = '';
+    document.getElementById('agencyName').value = '';
+    document.getElementById('shiftLabel').value = '';
+    document.getElementById('contactPerson').value = '';
+    document.getElementById('agencyPhone').value = '';
+    new bootstrap.Modal(document.getElementById('agencyModal')).show();
+}
+function openEditModal(id) {
+    const a = allAgencies.find(x => x.id === id);
+    if (!a) return;
+    document.getElementById('modalTitle').textContent = 'Edit Agency';
+    document.getElementById('agencyId').value = a.id;
+    document.getElementById('agencyName').value = a.name;
+    document.getElementById('shiftLabel').value = a.shift_label || '';
+    document.getElementById('contactPerson').value = a.contact_person || '';
+    document.getElementById('agencyPhone').value = a.phone || '';
+    new bootstrap.Modal(document.getElementById('agencyModal')).show();
+}
+async function saveAgency() {
+    const name = document.getElementById('agencyName').value.trim();
+    if (!name) { App.showToast('Name is required', 'error'); return; }
+    const payload = { name, shift_label: document.getElementById('shiftLabel').value.trim(), contact_person: document.getElementById('contactPerson').value.trim(), phone: document.getElementById('agencyPhone').value.trim() };
+    const id = document.getElementById('agencyId').value;
+    try {
+        if (id) await API.put(`/agencies/${id}`, payload);
+        else await API.post('/agencies', payload);
+        bootstrap.Modal.getInstance(document.getElementById('agencyModal')).hide();
+        App.showToast(id ? 'Agency updated' : 'Agency created', 'success');
+        loadAgencies();
+    } catch(e) { App.showToast(e.error || 'Failed to save', 'error'); }
+}
+function deactivateAgency(id, name) {
+    App.confirm(`Deactivate agency "${name}"?`, async () => {
+        try { await API.del(`/agencies/${id}`); App.showToast('Agency deactivated', 'success'); loadAgencies(); }
+        catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    });
+}
+function activateAgency(id, name) {
+    App.confirm(`Activate agency "${name}"?`, async () => {
+        try {
+            await API.put(`/agencies/${id}`, { is_active: true });
+            App.showToast('Agency activated', 'success');
+            loadAgencies();
+        } catch(e) {
+            App.showToast(e.error || 'Failed', 'error');
+        }
+    });
+}
+document.addEventListener('DOMContentLoaded', () => { if (!App.isAdmin()) { window.location.href = '/dashboard'; return; } loadAgencies(); });
+</script>
+{% endblock %}

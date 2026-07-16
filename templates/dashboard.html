@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Dairy Distribution Manager{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-page">
+
+    <!-- Date display -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-semibold mb-0 text-primary-dark">Business Overview</h5>
+            <small class="text-muted" id="dashboard-date"></small>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" onclick="loadDashboard()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+    </div>
+
+    <!-- Today's KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card kpi-billed">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon">
+                        <i class="bi bi-receipt-cutoff"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Today's Billed</span>
+                        <span class="kpi-value" id="kpi-today-billed">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card kpi-collected">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon">
+                        <i class="bi bi-cash-coin"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Today's Collected</span>
+                        <span class="kpi-value" id="kpi-today-collected">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card kpi-pending">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Today's Pending</span>
+                        <span class="kpi-value" id="kpi-today-pending">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card kpi-outstanding">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon">
+                        <i class="bi bi-exclamation-diamond-fill"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Total Outstanding</span>
+                        <span class="kpi-value" id="kpi-total-outstanding">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month-to-Date KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="kpi-card kpi-mtd-billed">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon"><i class="bi bi-calendar-range"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">MTD Billed</span>
+                        <span class="kpi-value" id="kpi-mtd-billed">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="kpi-card kpi-mtd-collected">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon"><i class="bi bi-calendar-check"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">MTD Collected</span>
+                        <span class="kpi-value" id="kpi-mtd-collected">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="kpi-card kpi-mtd-pending">
+                <div class="kpi-card-body">
+                    <div class="kpi-icon"><i class="bi bi-calendar-x"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">MTD Pending</span>
+                        <span class="kpi-value" id="kpi-mtd-pending">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6">
+            <div class="stat-card">
+                <div class="stat-card-body">
+                    <div class="stat-icon stat-icon-dealers">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-total-dealers">0</span>
+                        <span class="stat-label">Total Dealers</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6">
+            <div class="stat-card">
+                <div class="stat-card-body">
+                    <div class="stat-icon stat-icon-products">
+                        <i class="bi bi-box-seam-fill"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-total-products">0</span>
+                        <span class="stat-label">Total Products</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agency Comparison -->
+    <div class="row g-3 mb-4" id="agency-cards-row">
+        <div class="col-12">
+            <h6 class="section-title"><i class="bi bi-building me-2"></i>Agency Overview</h6>
+        </div>
+        <!-- Agency cards injected here by JS -->
+    </div>
+
+    <!-- Top 10 Pending Dealers -->
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="content-card-header">
+                    <h6 class="content-card-title">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                        Top 10 Pending Dealers
+                    </h6>
+                </div>
+                <div class="content-card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle" id="pending-dealers-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Dealer Name</th>
+                                    <th>Agency</th>
+                                    <th class="text-end">Pending Balance</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-dealers-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                        Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    if (!await App.checkAuth()) return;
+
+    const dateEl = document.getElementById('dashboard-date');
+    if (dateEl) {
+        const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        dateEl.textContent = new Date().toLocaleDateString('en-IN', opts);
+    }
+    loadDashboard();
+});
+
+async function loadDashboard() {
+    try {
+        const response = await API.get('/reports/dashboard');
+        const data = (response && response.dashboard) ? response.dashboard : {};
+        if (!data) return;
+
+        // Today's KPIs
+        document.getElementById('kpi-today-billed').textContent = App.formatCurrency(data.today_billed || 0);
+        document.getElementById('kpi-today-collected').textContent = App.formatCurrency(data.today_collected || 0);
+        document.getElementById('kpi-today-pending').textContent = App.formatCurrency(data.today_pending || 0);
+        document.getElementById('kpi-total-outstanding').textContent = App.formatCurrency(data.total_outstanding || 0);
+
+        // MTD KPIs
+        document.getElementById('kpi-mtd-billed').textContent = App.formatCurrency(data.month_billed || 0);
+        document.getElementById('kpi-mtd-collected').textContent = App.formatCurrency(data.month_collected || 0);
+        document.getElementById('kpi-mtd-pending').textContent = App.formatCurrency(data.month_pending || 0);
+
+        // Stats
+        document.getElementById('stat-total-dealers').textContent = data.total_dealers || 0;
+        document.getElementById('stat-total-products').textContent = data.total_products || 0;
+
+        // Agency cards
+        renderAgencyCards(data.per_agency || []);
+
+        // Top pending dealers
+        renderPendingDealers(data.top_pending_dealers || []);
+
+    } catch (err) {
+        App.showToast(err.error || 'Failed to load dashboard data.', 'error');
+    }
+}
+
+function renderAgencyCards(agencies) {
+    const row = document.getElementById('agency-cards-row');
+    // Keep the title
+    const title = row.querySelector('.col-12');
+    row.innerHTML = '';
+    if (title) row.appendChild(title);
+
+    if (agencies.length === 0) {
+        row.insertAdjacentHTML('beforeend', '<div class="col-12"><p class="text-muted">No agencies found.</p></div>');
+        return;
+    }
+
+    const colors = ['#1B6B93', '#4FC0D0', '#A2DE96', '#F0A500', '#E76F51', '#6C5CE7'];
+    agencies.forEach((agency, i) => {
+        const color = colors[i % colors.length];
+        const html = `
+        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+            <div class="agency-card" style="border-top: 3px solid ${color};">
+                <h6 class="agency-card-name">${agency.name || 'Agency'}</h6>
+                <div class="agency-card-stats">
+                    <div class="agency-stat">
+                        <small class="text-muted">Billed Today</small>
+                        <span class="fw-semibold">${App.formatCurrency(agency.today_billed || 0)}</span>
+                    </div>
+                    <div class="agency-stat">
+                        <small class="text-muted">Collected Today</small>
+                        <span class="fw-semibold text-success">${App.formatCurrency(agency.today_collected || 0)}</span>
+                    </div>
+                    <div class="agency-stat">
+                        <small class="text-muted">Dealers</small>
+                        <span class="fw-semibold">${agency.dealer_count || 0}</span>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        row.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+function renderPendingDealers(dealers) {
+    const tbody = document.getElementById('pending-dealers-body');
+    if (!dealers || dealers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-check-circle me-2"></i>No pending balances!</td></tr>';
+        return;
+    }
+    tbody.innerHTML = dealers.map((d, i) => `
+        <tr>
+            <td class="text-muted">${i + 1}</td>
+            <td class="fw-medium">${d.dealer_name || d.name || ''}</td>
+            <td><span class="badge bg-light text-dark">${d.agency_name || d.agency || ''}</span></td>
+            <td class="text-end fw-semibold text-danger">${App.formatCurrency(d.pending_balance || d.balance || 0)}</td>
+            <td class="text-center">
+                <a href="/dealers/${d.dealer_id || d.id}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye me-1"></i>View
+                </a>
+            </td>
+        </tr>
+    `).join('');
+}
+</script>
+{% endblock %}

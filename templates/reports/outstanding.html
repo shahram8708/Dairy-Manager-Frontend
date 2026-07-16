@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Outstanding Balances{% endblock %}
+{% block content %}
+<h4 class="page-title mb-4"><i class="bi bi-exclamation-triangle me-2"></i>Outstanding Balance Report</h4>
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label">Agency</label><select class="form-select" id="agencyFilter"><option value="">All Agencies</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary" onclick="generateReport()"><i class="bi bi-search me-1"></i>Generate</button></div>
+        <div class="col-md-7 text-end" id="exportBtns" style="display:none">
+            <span id="totalOutstanding" class="fw-bold text-danger me-3"></span>
+            <button class="btn btn-outline-danger btn-sm me-1" onclick="exportReport('pdf')"><i class="bi bi-file-pdf"></i> PDF</button>
+            <button class="btn btn-outline-success btn-sm me-1" onclick="exportReport('excel')"><i class="bi bi-file-excel"></i> Excel</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+        </div>
+    </div>
+</div></div>
+<div class="card shadow-sm" id="reportCard" style="display:none"><div class="card-body p-0">
+    <div class="table-responsive"><table class="table table-hover table-sm mb-0">
+        <thead><tr><th>Dealer</th><th>Agency</th><th>Phone</th><th class="text-end">Pending Balance (₹)</th><th class="text-end">Credit Limit (₹)</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="reportBody"></tbody>
+    </table></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/reports.js"></script>
+<script>
+async function init() {
+    try {
+        const data = await API.get('/agencies?is_active=true');
+        (data.agencies || []).forEach(a => document.getElementById('agencyFilter').innerHTML += `<option value="${a.id}">${a.name}</option>`);
+    } catch(e) {}
+    generateReport();
+}
+async function generateReport() {
+    App.showLoading();
+    try {
+        let url = '/reports/outstanding?';
+        const agency = document.getElementById('agencyFilter').value;
+        if (agency) url += `agency_id=${agency}&`;
+        const data = await API.get(url);
+        const dealers = data.dealers || [];
+        document.getElementById('totalOutstanding').textContent = `Total Outstanding: ${App.formatCurrency(data.total_outstanding || 0)}`;
+        document.getElementById('reportBody').innerHTML = dealers.length ? dealers.map(d => `<tr>
+            <td><a href="/dealers/${d.id}" class="text-decoration-none fw-semibold">${d.name}</a></td>
+            <td><span class="badge bg-info-subtle text-info">${d.agency_name || '-'}</span></td>
+            <td>${d.phone || '-'}</td>
+            <td class="text-end fw-bold text-danger">${App.formatCurrency(d.pending_balance)}</td>
+            <td class="text-end">${d.credit_limit !== null ? App.formatCurrency(d.credit_limit) : '-'}</td>
+            <td>${d.over_credit_limit ? '<span class="badge bg-danger">Over Limit</span>' : '<span class="badge bg-success">OK</span>'}</td>
+            <td><a href="/payment-collection?dealer_id=${d.id}" class="btn btn-sm btn-outline-success"><i class="bi bi-cash"></i></a></td>
+        </tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">No outstanding balances</td></tr>';
+        document.getElementById('reportCard').style.display = 'block';
+        document.getElementById('exportBtns').style.display = 'block';
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    App.hideLoading();
+}
+function exportReport(format) {
+    const agency = document.getElementById('agencyFilter').value;
+    let url = `/reports/export/outstanding?format=${format}`;
+    if (agency) url += `&agency_id=${agency}`;
+    API.download(url, `outstanding.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

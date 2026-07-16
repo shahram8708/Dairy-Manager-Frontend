@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Products{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title mb-0"><i class="bi bi-box-seam me-2"></i>Products</h4>
+    <button class="btn btn-primary" onclick="openAddProduct()" data-role="admin"><i class="bi bi-plus-lg me-1"></i>Add Product</button>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="row mb-3"><div class="col-md-4"><input type="text" class="form-control" id="searchInput" placeholder="Search products..." oninput="filterProducts()"></div></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Order</th><th>Name</th><th>Pack Size</th><th>Outer Unit</th><th>Pcs/Unit</th><th>Current Price (₹)</th><th>Status</th><th data-role="admin">Actions</th></tr></thead>
+                <tbody id="productsBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyState" class="text-center py-5 d-none"><i class="bi bi-box-seam text-muted" style="font-size:3rem"></i><p class="text-muted mt-2">No products found</p></div>
+    </div>
+</div>
+<div class="modal fade" id="productModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="productModalTitle">Add Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="productId">
+        <div class="mb-3"><label class="form-label">Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="productName"></div>
+        <div class="row"><div class="col-6 mb-3"><label class="form-label">Pack Size</label><input type="text" class="form-control" id="packSize" placeholder="e.g., 500ml"></div>
+        <div class="col-6 mb-3"><label class="form-label">Outer Unit</label><input type="text" class="form-control" id="outerUnit" placeholder="e.g., Crate" value="Crate"></div></div>
+        <div class="row"><div class="col-6 mb-3"><label class="form-label">Pieces per Unit</label><input type="number" class="form-control" id="piecesPerUnit" min="1"></div>
+        <div class="col-6 mb-3"><label class="form-label">Display Order</label><input type="number" class="form-control" id="displayOrder" value="0" min="0"></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveProduct()">Save</button></div>
+</div></div></div>
+<div class="modal fade" id="priceModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Set Price</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="priceProductId">
+        <p class="mb-2">Product: <strong id="priceProductName"></strong></p>
+        <p class="mb-3">Current Price: <strong id="currentPriceDisplay" class="text-primary">-</strong></p>
+        <div class="mb-3"><label class="form-label">New Price per Unit (₹) <span class="text-danger">*</span></label><input type="number" class="form-control" id="newPrice" step="0.01" min="0.01"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="savePrice()">Update Price</button></div>
+</div></div></div>
+<div class="modal fade" id="historyModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Price History</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <p>Product: <strong id="historyProductName"></strong></p>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Price (₹)</th><th>From</th><th>To</th><th>Set By</th><th>Status</th></tr></thead><tbody id="historyBody"></tbody></table></div>
+    </div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allProducts = [];
+async function loadProducts() {
+    App.showLoading();
+    try { const data = await API.get('/products'); allProducts = data.products || []; renderProducts(allProducts); }
+    catch(e) { App.showToast(e.error || 'Failed to load', 'error'); }
+    App.hideLoading();
+}
+function renderProducts(products) {
+    const tbody = document.getElementById('productsBody');
+    const empty = document.getElementById('emptyState');
+    if (!products.length) { tbody.innerHTML = ''; empty.classList.remove('d-none'); return; }
+    empty.classList.add('d-none');
+    tbody.innerHTML = products.map(p => `<tr>
+        <td>${p.display_order}</td><td><strong>${p.name}</strong></td><td>${p.pack_size || '-'}</td>
+        <td>${p.outer_unit || '-'}</td><td>${p.pieces_per_unit || '-'}</td>
+        <td>${p.current_price !== null ? App.formatCurrency(p.current_price) : '<span class="text-warning">Not set</span>'}</td>
+        <td>${p.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td data-role="admin">
+            <button class="btn btn-sm btn-outline-success me-1" onclick="openPriceModal(${p.id})" title="Set Price"><i class="bi bi-currency-rupee"></i></button>
+            <button class="btn btn-sm btn-outline-info me-1" onclick="showHistory(${p.id})" title="Price History"><i class="bi bi-clock-history"></i></button>
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditProduct(${p.id})" title="Edit"><i class="bi bi-pencil"></i></button>
+            ${p.is_active ? `<button class="btn btn-sm btn-outline-danger" onclick="deactivateProduct(${p.id},'${p.name}')" title="Deactivate"><i class="bi bi-x-circle"></i></button>` : ''}
+        </td></tr>`).join('');
+    if (!App.isAdmin()) document.querySelectorAll('[data-role="admin"]').forEach(el => el.style.display = 'none');
+}
+function filterProducts() { const q = document.getElementById('searchInput').value.toLowerCase(); renderProducts(allProducts.filter(p => p.name.toLowerCase().includes(q))); }
+function openAddProduct() {
+    document.getElementById('productModalTitle').textContent = 'Add Product';
+    document.getElementById('productId').value = '';
+    ['productName','packSize','piecesPerUnit'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('outerUnit').value = 'Crate'; document.getElementById('displayOrder').value = '0';
+    new bootstrap.Modal(document.getElementById('productModal')).show();
+}
+function openEditProduct(id) {
+    const p = allProducts.find(x => x.id === id); if (!p) return;
+    document.getElementById('productModalTitle').textContent = 'Edit Product';
+    document.getElementById('productId').value = p.id;
+    document.getElementById('productName').value = p.name;
+    document.getElementById('packSize').value = p.pack_size || '';
+    document.getElementById('outerUnit').value = p.outer_unit || 'Crate';
+    document.getElementById('piecesPerUnit').value = p.pieces_per_unit || '';
+    document.getElementById('displayOrder').value = p.display_order || 0;
+    new bootstrap.Modal(document.getElementById('productModal')).show();
+}
+async function saveProduct() {
+    const name = document.getElementById('productName').value.trim();
+    if (!name) { App.showToast('Name is required', 'error'); return; }
+    const payload = { name, pack_size: document.getElementById('packSize').value.trim(), outer_unit: document.getElementById('outerUnit').value.trim() || 'Crate', pieces_per_unit: parseInt(document.getElementById('piecesPerUnit').value) || null, display_order: parseInt(document.getElementById('displayOrder').value) || 0 };
+    const id = document.getElementById('productId').value;
+    try {
+        if (id) await API.put(`/products/${id}`, payload); else await API.post('/products', payload);
+        bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+        App.showToast(id ? 'Product updated' : 'Product created', 'success'); loadProducts();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+function openPriceModal(id) {
+    const p = allProducts.find(x => x.id === id); if (!p) return;
+    document.getElementById('priceProductId').value = p.id;
+    document.getElementById('priceProductName').textContent = `${p.name} ${p.pack_size || ''}`;
+    document.getElementById('currentPriceDisplay').textContent = p.current_price !== null ? App.formatCurrency(p.current_price) : 'Not set';
+    document.getElementById('newPrice').value = '';
+    new bootstrap.Modal(document.getElementById('priceModal')).show();
+}
+async function savePrice() {
+    const id = document.getElementById('priceProductId').value;
+    const price = parseFloat(document.getElementById('newPrice').value);
+    if (!price || price <= 0) { App.showToast('Enter a valid price', 'error'); return; }
+    try {
+        await API.post(`/products/${id}/price`, { price_per_unit: price });
+        bootstrap.Modal.getInstance(document.getElementById('priceModal')).hide();
+        App.showToast('Price updated', 'success'); loadProducts();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+async function showHistory(id) {
+    const p = allProducts.find(x => x.id === id); if (!p) return;
+    document.getElementById('historyProductName').textContent = `${p.name} ${p.pack_size || ''}`;
+    try {
+        const data = await API.get(`/products/${id}/prices`);
+        document.getElementById('historyBody').innerHTML = (data.prices || []).map(pr => `<tr>
+            <td><strong>${App.formatCurrency(pr.price_per_unit)}</strong></td><td>${pr.effective_from}</td>
+            <td>${pr.effective_to || '-'}</td><td>${pr.set_by_name || '-'}</td>
+            <td>${pr.is_current ? '<span class="badge bg-success">Current</span>' : '<span class="badge bg-secondary">Past</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted">No price history</td></tr>';
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+}
+function deactivateProduct(id, name) { App.confirm(`Deactivate "${name}"?`, async () => { try { await API.del(`/products/${id}`); App.showToast('Deactivated', 'success'); loadProducts(); } catch(e) { App.showToast(e.error || 'Failed', 'error'); } }); }
+document.addEventListener('DOMContentLoaded', () => { if (!App.isAdmin()) { window.location.href = '/dashboard'; return; } loadProducts(); });
+</script>
+{% endblock %}
