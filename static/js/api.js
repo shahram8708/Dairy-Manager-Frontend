@@ -18,8 +18,7 @@ const API = (() => {
      */
     function init() {
         const el = document.getElementById('api-base-url');
-        BASE_URL = el ? el.textContent.trim() : 'http://127.0.0.1:5000/api/v1';
-        // Remove trailing slash if any
+        BASE_URL = el ? el.textContent.trim() : '';
         BASE_URL = BASE_URL.replace(/\/+$/, '');
         startHealthCheck();
     }

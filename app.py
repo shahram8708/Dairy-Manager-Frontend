@@ -6,7 +6,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'frontend-secret')
-API_BASE_URL = os.environ.get('API_BASE_URL', 'http://127.0.0.1:5000/api/v1')
+API_BASE_URL = os.environ.get('API_BASE_URL', '').rstrip('/')
 
 @app.context_processor
 def inject_api_url():
