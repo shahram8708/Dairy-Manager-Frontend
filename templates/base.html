@@ -36,7 +36,7 @@
         <div class="sidebar-brand">
             <i class="bi bi-droplet-fill sidebar-brand-icon"></i>
             <div>
-                <span class="sidebar-brand-text" id="sidebar-business-name">Dairy Manager</span>
+                <span class="sidebar-brand-text" id="sidebar-business-name">MilkSetu</span>
                 <small class="sidebar-brand-sub">Distribution System</small>
             </div>
         </div>
@@ -46,7 +46,7 @@
         <ul class="sidebar-menu">
             <!-- Dashboard -->
             <li class="sidebar-item">
-                <a href="/dashboard" class="nav-link" data-role="admin,collector">
+                <a href="/dashboard" class="nav-link" data-role="admin">
                     <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
                 </a>
             </li>
@@ -67,7 +67,7 @@
 
             <!-- Dealers -->
             <li class="sidebar-item">
-                <a href="/dealers" class="nav-link" data-role="admin,collector">
+                <a href="/dealers" class="nav-link" data-role="admin,delivery">
                     <i class="bi bi-people-fill"></i><span>Dealers</span>
                 </a>
             </li>
@@ -87,7 +87,7 @@
             </li>
 
             <!-- Reports Dropdown -->
-            <li class="sidebar-item sidebar-dropdown" data-role="admin,collector">
+            <li class="sidebar-item sidebar-dropdown" data-role="admin">
                 <a href="#reportsCollapse" class="nav-link dropdown-toggle" data-bs-toggle="collapse" role="button" aria-expanded="false">
                     <i class="bi bi-bar-chart-line-fill"></i><span>Reports</span>
                 </a>
@@ -122,7 +122,7 @@
     </nav>
 
     <div class="sidebar-footer">
-        <small>&copy; {{ now().year if now is defined else '2026' }} Dairy Manager</small>
+        <small>&copy; {{ now().year if now is defined else '2026' }} MilkSetu</small>
     </div>
 </aside>
 
@@ -132,7 +132,7 @@
         <div class="sidebar-brand">
             <i class="bi bi-droplet-fill sidebar-brand-icon"></i>
             <div>
-                <span class="sidebar-brand-text" id="mobileSidebarLabel">Dairy Manager</span>
+                <span class="sidebar-brand-text" id="mobileSidebarLabel">MilkSetu</span>
                 <small class="sidebar-brand-sub">Distribution System</small>
             </div>
         </div>
@@ -142,7 +142,7 @@
         <nav id="mobile-sidebar-nav">
             <ul class="sidebar-menu">
                 <li class="sidebar-item">
-                    <a href="/dashboard" class="nav-link" data-role="admin,collector">
+                    <a href="/dashboard" class="nav-link" data-role="admin">
                         <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
                     </a>
                 </li>
@@ -157,7 +157,7 @@
                     </a>
                 </li>
                 <li class="sidebar-item">
-                    <a href="/dealers" class="nav-link" data-role="admin,collector">
+                    <a href="/dealers" class="nav-link" data-role="admin,delivery">
                         <i class="bi bi-people-fill"></i><span>Dealers</span>
                     </a>
                 </li>
@@ -171,7 +171,7 @@
                         <i class="bi bi-cash-stack"></i><span>Payment Collection</span>
                     </a>
                 </li>
-                <li class="sidebar-item sidebar-dropdown" data-role="admin,collector">
+                <li class="sidebar-item sidebar-dropdown" data-role="admin">
                     <a href="#mobileReportsCollapse" class="nav-link dropdown-toggle" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="bi bi-bar-chart-line-fill"></i><span>Reports</span>
                     </a>

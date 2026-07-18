@@ -199,6 +199,9 @@ function exportStatement(format) {
     API.download(url, `dealer_statement_${DEALER_ID}.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
 }
 document.addEventListener('DOMContentLoaded', () => {
+    const role = App.getUserRole();
+    if (role === 'collector') { window.location.href = '/payment-collection'; return; }
+    if (role !== 'admin' && role !== 'delivery') { window.location.href = '/login'; return; }
     const today = App.todayISO();
     const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
     document.getElementById('stmtFrom').value = monthAgo.toISOString().split('T')[0];

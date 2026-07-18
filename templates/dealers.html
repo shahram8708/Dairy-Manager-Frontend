@@ -125,6 +125,16 @@ async function saveDealer() {
     } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
 }
 function deactivateDealer(id, name) { App.confirm(`Deactivate "${name}"?`, async () => { try { await API.del(`/dealers/${id}`); App.showToast('Deactivated', 'success'); loadDealers(); } catch(e) { App.showToast(e.error || 'Failed', 'error'); } }); }
-document.addEventListener('DOMContentLoaded', async () => { await loadAgencies(); loadDealers(); });
+document.addEventListener('DOMContentLoaded', async () => {
+    const role = App.getUserRole();
+    if (role === 'collector') { window.location.href = '/payment-collection'; return; }
+    if (role !== 'admin' && role !== 'delivery') { window.location.href = '/login'; return; }
+    if (role === 'delivery') {
+        const agencyCol = document.getElementById('agencyFilter').closest('.col-md-3');
+        if (agencyCol) agencyCol.style.display = 'none';
+    }
+    await loadAgencies();
+    loadDealers();
+});
 </script>
 {% endblock %}

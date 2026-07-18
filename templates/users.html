@@ -18,7 +18,8 @@
         <div class="mb-3" id="usernameGroup"><label class="form-label">Username <span class="text-danger">*</span></label><input type="text" class="form-control" id="username"></div>
         <div class="mb-3" id="passwordGroup"><label class="form-label">Password <span class="text-danger">*</span></label><input type="password" class="form-control" id="password"></div>
         <div class="mb-3"><label class="form-label">Full Name</label><input type="text" class="form-control" id="fullName"></div>
-        <div class="mb-3"><label class="form-label">Role <span class="text-danger">*</span></label><select class="form-select" id="userRole"><option value="collector">Collector</option><option value="admin">Admin</option></select></div>
+        <div class="mb-3"><label class="form-label">Role <span class="text-danger">*</span></label><select class="form-select" id="userRole" onchange="toggleAgencyField()"><option value="collector">Collector</option><option value="delivery">Delivery</option><option value="admin">Admin</option></select></div>
+        <div class="mb-3" id="agencyGroup"><label class="form-label">Agency <span class="text-danger">*</span></label><select class="form-select" id="userAgency"></select></div>
         <div class="mb-3" id="activeGroup" style="display:none"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="userActive" checked><label class="form-check-label">Active</label></div></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save</button></div>
@@ -36,15 +37,24 @@
 let allUsers = [];
 async function loadUsers() {
     App.showLoading();
-    try { const data = await API.get('/users'); allUsers = data.users || []; renderUsers(); }
-    catch(e) { App.showToast(e.error || 'Failed', 'error'); }
+    try {
+        const [userData, agencyData] = await Promise.all([
+            API.get('/users'),
+            API.get('/agencies?is_active=true')
+        ]);
+        allUsers = userData.users || [];
+        allAgencies = agencyData.agencies || [];
+        renderUsers();
+        renderAgencyOptions();
+    } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
     App.hideLoading();
 }
 function renderUsers() {
     const currentUser = API.getUserFromToken();
     document.getElementById('usersBody').innerHTML = allUsers.map(u => `<tr>
         <td><strong>${u.username}</strong></td><td>${u.full_name || '-'}</td>
-        <td><span class="badge ${u.role === 'admin' ? 'bg-primary' : 'bg-info'}">${u.role === 'admin' ? 'Admin' : 'Collector'}</span></td>
+        <td><span class="badge ${u.role === 'admin' ? 'bg-primary' : u.role === 'delivery' ? 'bg-success' : 'bg-info'}">${u.role === 'admin' ? 'Admin' : u.role === 'delivery' ? 'Delivery' : 'Collector'}</span></td>
+        <td>${u.agency_name || '-'}</td>
         <td>${u.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
         <td>${u.last_login || 'Never'}</td>
         <td>
@@ -52,14 +62,34 @@ function renderUsers() {
             <button class="btn btn-sm btn-outline-warning" onclick="openResetPw(${u.id}, '${u.username}')"><i class="bi bi-key"></i></button>
         </td></tr>`).join('');
 }
+function renderAgencyOptions() {
+    const select = document.getElementById('userAgency');
+    select.innerHTML = '<option value="">Select Agency</option>';
+    allAgencies.forEach(a => {
+        select.insertAdjacentHTML('beforeend', `<option value="${a.id}">${a.name}</option>`);
+    });
+}
+
+function toggleAgencyField() {
+    const role = document.getElementById('userRole').value;
+    const group = document.getElementById('agencyGroup');
+    if (role === 'delivery') {
+        group.style.display = '';
+    } else {
+        group.style.display = 'none';
+    }
+}
+
 function openAddUser() {
     document.getElementById('userModalTitle').textContent = 'Add User';
     document.getElementById('userId').value = '';
     ['username','password','fullName'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('userRole').value = 'collector';
+    document.getElementById('userAgency').value = '';
     document.getElementById('usernameGroup').style.display = 'block';
     document.getElementById('passwordGroup').style.display = 'block';
     document.getElementById('activeGroup').style.display = 'none';
+    toggleAgencyField();
     new bootstrap.Modal(document.getElementById('userModal')).show();
 }
 function openEditUser(id) {
@@ -68,27 +98,51 @@ function openEditUser(id) {
     document.getElementById('userId').value = u.id;
     document.getElementById('fullName').value = u.full_name || '';
     document.getElementById('userRole').value = u.role;
+    document.getElementById('userAgency').value = u.agency_id || '';
     document.getElementById('userActive').checked = u.is_active;
     document.getElementById('usernameGroup').style.display = 'none';
     document.getElementById('passwordGroup').style.display = 'none';
     document.getElementById('activeGroup').style.display = 'block';
+    toggleAgencyField();
     new bootstrap.Modal(document.getElementById('userModal')).show();
 }
 async function saveUser() {
     const id = document.getElementById('userId').value;
     if (id) {
+        const role = document.getElementById('userRole').value;
+        const agencyId = document.getElementById('userAgency').value;
+        const payload = {
+            role,
+            full_name: document.getElementById('fullName').value.trim(),
+            is_active: document.getElementById('userActive').checked
+        };
+        if (role === 'delivery') {
+            if (!agencyId) { App.showToast('Select agency for delivery user', 'error'); return; }
+            payload.agency_id = parseInt(agencyId, 10);
+        } else {
+            payload.agency_id = null;
+        }
         try {
-            await API.put(`/users/${id}`, { role: document.getElementById('userRole').value, full_name: document.getElementById('fullName').value.trim(), is_active: document.getElementById('userActive').checked });
+            await API.put(`/users/${id}`, payload);
             bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
             App.showToast('User updated', 'success'); loadUsers();
         } catch(e) { App.showToast(e.error || 'Failed', 'error'); }
     } else {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
+        const role = document.getElementById('userRole').value;
+        const agencyId = document.getElementById('userAgency').value;
         if (!username) { App.showToast('Username required', 'error'); return; }
         if (!password || password.length < 4) { App.showToast('Password must be at least 4 characters', 'error'); return; }
+        if (role === 'delivery' && !agencyId) { App.showToast('Select agency for delivery user', 'error'); return; }
         try {
-            await API.post('/users', { username, password, role: document.getElementById('userRole').value, full_name: document.getElementById('fullName').value.trim() });
+            await API.post('/users', {
+                username,
+                password,
+                role,
+                full_name: document.getElementById('fullName').value.trim(),
+                agency_id: role === 'delivery' ? parseInt(agencyId, 10) : null
+            });
             bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
             App.showToast('User created', 'success'); loadUsers();
         } catch(e) { App.showToast(e.error || 'Failed', 'error'); }

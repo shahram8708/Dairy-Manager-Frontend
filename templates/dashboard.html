@@ -192,6 +192,11 @@
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
     if (!await App.checkAuth()) return;
+    const role = App.getUserRole();
+    if (role !== 'admin') {
+        window.location.href = role === 'collector' ? '/payment-collection' : role === 'delivery' ? '/dealers' : '/login';
+        return;
+    }
 
     const dateEl = document.getElementById('dashboard-date');
     if (dateEl) {

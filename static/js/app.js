@@ -335,7 +335,9 @@ const App = (() => {
         const payload = API.getUserFromToken();
         if (payload) {
             const name = payload.full_name || payload.username || payload.sub || 'User';
-            const roleLabel = role === 'admin' ? 'Administrator' : 'Collector';
+            const roleLabel = payload.role === 'admin' ? 'Administrator'
+                : payload.role === 'delivery' ? 'Delivery'
+                : 'Collector';
             if (userDisplayName) userDisplayName.textContent = name;
             if (userRoleDisplay) userRoleDisplay.textContent = roleLabel;
             if (userMenuName) userMenuName.textContent = name;
@@ -346,7 +348,9 @@ const App = (() => {
         API.get('/auth/me').then(data => {
             if (data && data.user) {
                 const name = data.user.full_name || data.user.username || 'User';
-                const roleLabel = data.user.role === 'admin' ? 'Administrator' : 'Collector';
+                const roleLabel = data.user.role === 'admin' ? 'Administrator'
+                    : data.user.role === 'delivery' ? 'Delivery'
+                    : 'Collector';
                 if (userDisplayName) userDisplayName.textContent = name;
                 if (userRoleDisplay) userRoleDisplay.textContent = roleLabel;
                 if (userMenuName) userMenuName.textContent = name;

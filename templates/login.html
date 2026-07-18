@@ -68,7 +68,7 @@
                 <!-- Mobile branding (hidden on desktop) -->
                 <div class="text-center mb-4 d-md-none">
                     <i class="bi bi-droplet-fill" style="font-size:2.5rem;color:var(--primary);"></i>
-                    <h4 class="mt-2 fw-bold" style="color:var(--primary-dark);">Dairy Manager</h4>
+                    <h4 class="mt-2 fw-bold" style="color:var(--primary-dark);">MilkSetu</h4>
                 </div>
 
                 <h2 class="login-title">Welcome back</h2>
@@ -140,27 +140,41 @@
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
     await API.init();
-    // If already logged in, redirect to dashboard
+    // If already logged in, redirect based on role
     const token = localStorage.getItem('access_token');
     const refresh = localStorage.getItem('refresh_token');
     if (!token && refresh) {
         const refreshed = await API.refreshToken();
         if (refreshed) {
-            window.location.href = '/dashboard';
+            const refreshedPayload = API.getUserFromToken();
+            const refreshedTarget = refreshedPayload && refreshedPayload.role === 'collector'
+                ? '/payment-collection'
+                : refreshedPayload && refreshedPayload.role === 'delivery'
+                    ? '/dealers'
+                    : '/dashboard';
+            window.location.href = refreshedTarget;
             return;
         }
     }
     if (token) {
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
+            const role = payload.role;
+            const target = role === 'collector' ? '/payment-collection' : role === 'delivery' ? '/dealers' : '/dashboard';
             if (payload.exp && payload.exp * 1000 > Date.now()) {
-                window.location.href = '/dashboard';
+                window.location.href = target;
                 return;
             }
             if (refresh) {
                 const refreshed = await API.refreshToken();
                 if (refreshed) {
-                    window.location.href = '/dashboard';
+                    const refreshedPayload = API.getUserFromToken();
+                    const refreshedTarget = refreshedPayload && refreshedPayload.role === 'collector'
+                        ? '/payment-collection'
+                        : refreshedPayload && refreshedPayload.role === 'delivery'
+                            ? '/dealers'
+                            : '/dashboard';
+                    window.location.href = refreshedTarget;
                     return;
                 }
             }
@@ -236,7 +250,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (data && data.access_token) {
                 API.setTokens(data.access_token, data.refresh_token);
                 await API.get('/auth/me');
-                window.location.href = '/dashboard';
+                const payload = API.getUserFromToken();
+                const role = payload ? payload.role : null;
+                const target = role === 'collector' ? '/payment-collection' : role === 'delivery' ? '/dealers' : '/dashboard';
+                window.location.href = target;
             } else {
                 throw { error: 'Invalid response from server.' };
             }

@@ -139,6 +139,9 @@ async function submitPayment() {
     setTimeout(() => { submitLock = false; }, 2000);
 }
 document.addEventListener('DOMContentLoaded', async () => {
+    const role = App.getUserRole();
+    if (role === 'delivery') { window.location.href = '/dealers'; return; }
+    if (role !== 'admin' && role !== 'collector') { window.location.href = '/login'; return; }
     await loadDealers();
     const params = new URLSearchParams(window.location.search);
     const dealerId = params.get('dealer_id');
