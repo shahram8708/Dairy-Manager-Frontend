@@ -1,5 +1,5 @@
 /**
- * App Utilities Module - Dairy Distribution Manager
+ * App Utilities Module - MilkSetu
  *
  * Common helper functions: toasts, currency formatting, date helpers,
  * loading overlay, confirm dialogs, auth checks, navigation, and pagination.

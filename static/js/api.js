@@ -1,5 +1,5 @@
 /**
- * API Client Module - Dairy Distribution Manager
+ * API Client Module - MilkSetu
  *
  * Core HTTP client with JWT auth, health-check polling with backoff,
  * automatic token refresh, and retry logic for cold-start wake-up.
