@@ -1278,6 +1278,22 @@ a:hover {
     border-radius: var(--radius-md);
 }
 
+.delivery-entry-grid-wrapper {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.delivery-entry-grid-wrapper thead th {
+    position: sticky;
+    top: 0;
+    z-index: 9;
+    background: var(--bg-light);
+}
+
+.delivery-entry-grid-wrapper thead th:first-child {
+    z-index: 11;
+}
+
 .delivery-grid {
     min-width: 800px;
 }
